@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/MHmorgan/reminders/reminder"
@@ -76,29 +77,8 @@ func (s *Scanner) next() {
 
 // skip the next `n` bytes, setting the `n+1` byte as current.
 func (s *Scanner) skip(n int) {
-	if n == 0 {
-		s.next()
-		return
-	}
-
 	for i := 0; i <= n; i++ {
 		s.next()
-	}
-}
-
-func (s *Scanner) back() {
-	switch s.pos {
-	case 0:
-		return
-	case 1:
-		s.pos--
-		s.ch = 0
-	default:
-		s.pos--
-		s.ch = s.src[s.pos-1]
-		if s.ch == '\n' && s.line > 1 {
-			s.line--
-		}
 	}
 }
 
@@ -134,7 +114,7 @@ func (s *Scanner) eof() bool {
 func (s *Scanner) scanCppComment() {
 	line := s.line
 	s.next()
-	raw := s.collectUntil(func(b byte) bool { return b == '\n' })
+	raw := s.collectUntil(func() bool { return s.ch == '\n' })
 	s.emitReminder(line, raw)
 }
 
@@ -148,7 +128,7 @@ func (s *Scanner) scanCComment() {
 func (s *Scanner) scanHashComment() {
 	line := s.line
 	s.next()
-	raw := s.collectUntil(func(b byte) bool { return b == '\n' })
+	raw := s.collectUntil(func() bool { return s.ch == '\n' })
 	s.emitReminder(line, raw)
 }
 
@@ -158,7 +138,7 @@ func (s *Scanner) scanDashComment() {
 	if s.ch == '-' {
 		s.next()
 	}
-	raw := s.collectUntil(func(b byte) bool { return b == '\n' })
+	raw := s.collectUntil(func() bool { return s.ch == '\n' })
 	s.emitReminder(line, raw)
 }
 
@@ -169,14 +149,14 @@ func (s *Scanner) scanHtmlComment() {
 	s.emitReminder(line, raw)
 }
 
-func (s *Scanner) collectUntil(stop func(byte) bool) string {
+func (s *Scanner) collectUntil(stop func() bool) string {
 	if s.ch == 0 {
 		return ""
 	}
 
 	var b strings.Builder
 	for {
-		if s.ch == 0 || stop(s.ch) {
+		if s.ch == 0 || stop() {
 			break
 		}
 		b.WriteByte(s.ch)
@@ -237,6 +217,7 @@ func parseComment(raw string) (string, []string) {
 		c := raw[i]
 
 		switch {
+		// Normalize whitespaces into space
 		case c == '\r' || c == '\n' || c == '\t':
 			if !lastSpace && builder.Len() > 0 {
 				builder.WriteByte(' ')
@@ -244,6 +225,7 @@ func parseComment(raw string) (string, []string) {
 			}
 			prev = ' '
 			i++
+		// Consume tags
 		case c == '@' && isTagBoundary(prev) && i+1 < len(raw) && isTagChar(raw[i+1]):
 			start := i + 1
 			j := start
@@ -251,10 +233,11 @@ func parseComment(raw string) (string, []string) {
 				j++
 			}
 			tag := raw[start:j]
-			if tag != "" && !tagExists(tags, tag) {
+			if tag != "" && !slices.Contains(tags, tag) {
 				tags = append(tags, tag)
 			}
 			i = j
+			// Skip trailing colon
 			if i < len(raw) && raw[i] == ':' {
 				i++
 			}
@@ -263,6 +246,7 @@ func parseComment(raw string) (string, []string) {
 			}
 			lastSpace = true
 			prev = ' '
+		// Collapse consecutive spaces
 		case c == ' ':
 			if !lastSpace && builder.Len() > 0 {
 				builder.WriteByte(' ')
@@ -302,13 +286,4 @@ func isTagChar(b byte) bool {
 	default:
 		return false
 	}
-}
-
-func tagExists(tags []string, tag string) bool {
-	for _, existing := range tags {
-		if existing == tag {
-			return true
-		}
-	}
-	return false
 }

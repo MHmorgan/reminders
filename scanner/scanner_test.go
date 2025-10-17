@@ -92,7 +92,7 @@ func TestBasics(t *testing.T) {
 const compositeSource = `
 // @Todo Clean this up
 def foo() {
-	-- @Todo @Later Do more?
+	-- @Todo @Later: Do more?
 	echo "Hello world!" # @Bug @Fix Wrong text!
 }
 
