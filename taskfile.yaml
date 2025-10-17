@@ -1,0 +1,13 @@
+version: '3'
+
+interval: 1000ms
+
+tasks:
+  test:
+    desc: Run tests
+    watch: true
+    sources:
+      - '**/*.go'
+    cmds:
+      - clear
+      - go test -v ./...
