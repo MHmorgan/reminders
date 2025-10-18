@@ -33,3 +33,7 @@ go.work.sum
 
 # Go-task
 .task
+
+# Go build stuff
+.gocache
+.gomodcache

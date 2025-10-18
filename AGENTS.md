@@ -11,10 +11,13 @@
 - `go build ./...` compiles all packages and validates module boundaries.
 - `go test -v ./...` executes the Go test suite.
 
-## Coding Style & Naming Conventions
+## Coding Style
 - Format Go sources with `gofmt -w <files>` before committing; the repo assumes standard tab-indented Go style and idiomatic error handling.
 - Exported types and functions use UpperCamelCase (`Reminder`, `NewScanner`); unexported helpers stay lowerCamelCase.
 - Keep file names snake_case (`scanner_test.go`) and limit packages to cohesive responsibilities to preserve short import paths.
+- Always write doc comments for functions and struct fields - focus on documenting "why" (not just what it is).
+- Longer functions which have natural sub-sections should have a "header comment" for each sub-section.
+- Very complicated lines of code, or any non-obvious behaviour, should have an explanation comment.
 
 ## Testing Guidelines
 - Use Go’s `testing` package with `TestXxx` functions; place fixtures near their tests to keep context local.
