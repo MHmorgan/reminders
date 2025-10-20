@@ -3,8 +3,43 @@ package main
 import (
 	"fmt"
 	"io/fs"
+	"path/filepath"
 	"strings"
 )
+
+var includedFileTypes = map[string]struct{}{
+	".bash": {},
+	".c":    {},
+	".cpp":  {},
+	".css":  {},
+	".go":   {},
+	".html": {},
+	".java": {},
+	".js":   {},
+	".kt":   {},
+	".lua":  {},
+	".nu":   {},
+	".pl":   {},
+	".py":   {},
+	".rb":   {},
+	".rs":   {},
+	".sql":  {},
+	".ts":   {},
+	".yaml": {},
+	".zig":  {},
+	".zsh":  {},
+}
+
+var excludedDirectories = map[string]struct{}{
+	".DS_Store": {},
+	".git":      {},
+	".gradle":   {},
+	".idea":     {},
+	"build":     {},
+	"dist":      {},
+	"target":    {},
+	"venv":      {},
+}
 
 type searchResult struct {
 	path string
@@ -26,17 +61,26 @@ func fileSearch(fsys fs.FS, files chan<- searchResult, errors chan<- error) {
 		}
 
 		if d.IsDir() {
+			name := d.Name()
 			if path == "." {
 				return nil
 			}
+			if _, ok := excludedDirectories[name]; ok {
+				return fs.SkipDir
+			}
 			// Skip hidden directories
-			if strings.HasPrefix(d.Name(), ".") {
+			if strings.HasPrefix(name, ".") {
 				return fs.SkipDir
 			}
 			return nil
 		}
 
 		if !d.Type().IsRegular() {
+			return nil
+		}
+
+		ext := filepath.Ext(path)
+		if _, ok := includedFileTypes[ext]; !ok && ext != "" {
 			return nil
 		}
 

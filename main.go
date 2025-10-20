@@ -37,6 +37,7 @@ func main() {
 		base := path.Base(res.path)
 		dir := path.Dir(res.path)
 		printPath := true
+
 		for r := range res.reminders {
 			if !shouldEmit(r, filters) {
 				continue
@@ -47,6 +48,7 @@ func main() {
 			}
 			fmt.Printf("%4d: %s\n", r.Line(), r.Text())
 		}
+
 		select {
 		case err := <-errors:
 			fmt.Fprintf(os.Stderr, "walk error: %v\n", err)
