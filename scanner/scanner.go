@@ -14,19 +14,14 @@ var (
 	blockClose = []byte("*/")
 )
 
-func NewScanner(file string, src []byte, out chan<- reminder.Reminder) *Scanner {
-	return &Scanner{
-		src:       src,
-		file:      file,
-		lineNum:   1,
-		reminders: out,
-	}
-}
-
 // A Scanner holds the scanner's internal state while scanning
 // a source file for reminders.
 type Scanner struct {
+	// @Todo Re-use a single bytes buffer for reading all files, reducing allocation and GC. Reading files in chunks.
+	// @Todo Use fs.File instead of []byte
 	src []byte
+
+	// @Todo Use bufio.Reader to buffer the reading
 
 	ch      byte
 	pos     int
@@ -34,6 +29,17 @@ type Scanner struct {
 	file    string
 
 	reminders chan<- reminder.Reminder
+
+	comment strings.Builder
+}
+
+func (s *Scanner) Init(file string, src []byte, out chan<- reminder.Reminder) {
+	s.src = src
+	s.ch = 0
+	s.pos = 0
+	s.lineNum = 1
+	s.file = file
+	s.reminders = out
 }
 
 func (s *Scanner) Scan() {
@@ -201,7 +207,7 @@ func (s *Scanner) collectUntilPattern(pattern []byte) string {
 }
 
 func (s *Scanner) emitReminder(line int, raw string) {
-	text, tags := parseComment(strings.TrimSpace(raw))
+	text, tags := s.parseComment(strings.TrimSpace(raw))
 	if len(tags) == 0 {
 		return
 	}
@@ -210,34 +216,34 @@ func (s *Scanner) emitReminder(line int, raw string) {
 	s.reminders <- rem
 }
 
-func parseComment(raw string) (string, []string) {
+func (s *Scanner) parseComment(raw string) (string, []string) {
 	if raw == "" {
 		return "", nil
 	}
 
 	var (
-		builder   strings.Builder
 		tags      []string
 		lastSpace = true
 		prev      byte
 	)
 
+	s.comment.Reset()
 	for i := 0; i < len(raw); {
 		c := raw[i]
 
 		switch {
 		// Normalize whitespaces into space
 		case c == '\r' || c == '\n' || c == '\t':
-			if !lastSpace && builder.Len() > 0 {
-				builder.WriteByte(' ')
+			if !lastSpace && s.comment.Len() > 0 {
+				s.comment.WriteByte(' ')
 				lastSpace = true
 			}
 			prev = ' '
 			i++
 		// Consume tags
 		case c == '@' && isTagBoundary(prev) && i+1 < len(raw) && isTagChar(raw[i+1]):
-			if !lastSpace && builder.Len() > 0 {
-				builder.WriteByte(' ')
+			if !lastSpace && s.comment.Len() > 0 {
+				s.comment.WriteByte(' ')
 			}
 			start := i + 1
 			j := start
@@ -250,35 +256,35 @@ func parseComment(raw string) (string, []string) {
 				lower := strings.ToLower(tag)
 				tags = append(tags, lower)
 				// Include the tag the text
-				builder.WriteString(tio.Bold)
-				builder.WriteString(tag)
-				builder.WriteString(tio.NoBold)
+				s.comment.WriteString(tio.Bold)
+				s.comment.WriteString(tag)
+				s.comment.WriteString(tio.NoBold)
 			}
 			i = j
 			// Skip trailing colon
 			if i < len(raw) && raw[i] == ':' {
 				i++
 			}
-			builder.WriteByte(' ')
+			s.comment.WriteByte(' ')
 			lastSpace = true
 			prev = ' '
 		// Collapse consecutive spaces
 		case c == ' ':
-			if !lastSpace && builder.Len() > 0 {
-				builder.WriteByte(' ')
+			if !lastSpace && s.comment.Len() > 0 {
+				s.comment.WriteByte(' ')
 			}
 			lastSpace = true
 			prev = ' '
 			i++
 		default:
-			builder.WriteByte(c)
+			s.comment.WriteByte(c)
 			lastSpace = false
 			prev = c
 			i++
 		}
 	}
 
-	text := strings.TrimSpace(builder.String())
+	text := strings.TrimSpace(s.comment.String())
 	return text, tags
 }
 

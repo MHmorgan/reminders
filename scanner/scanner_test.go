@@ -11,8 +11,10 @@ const fTest = "langly-falls.go"
 
 func testScanner(source string, sz int) (*Scanner, <-chan reminder.Reminder, error) {
 	out := make(chan reminder.Reminder, sz)
-	scn := NewScanner(fTest, []byte(source), out)
-	return scn, out, nil
+
+	var scn Scanner
+	scn.Init(fTest, []byte(source), out)
+	return &scn, out, nil
 }
 
 func drain(out <-chan reminder.Reminder) []reminder.Reminder {

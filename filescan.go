@@ -25,6 +25,8 @@ func fileScanning(
 ) {
 	defer close(out)
 
+	var scn scanner.Scanner
+
 	for res := range in {
 		src, err := io.ReadAll(res.file)
 		res.file.Close()
@@ -33,13 +35,11 @@ func fileScanning(
 			continue
 		}
 
-		reminders := make(chan reminder.Reminder)
-		scn := scanner.NewScanner(res.path, src, reminders)
+		reminders := make(chan reminder.Reminder, 1)
 		out <- scanResult{res.path, reminders}
 
-		go func() {
-			scn.Scan()
-			close(reminders)
-		}()
+		scn.Init(res.path, src, reminders)
+		scn.Scan()
+		close(reminders)
 	}
 }
