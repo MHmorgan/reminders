@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/MHmorgan/reminders/reminder"
+	"github.com/MHmorgan/reminders/tio"
 )
 
 var (
@@ -246,7 +247,9 @@ func parseComment(raw string) (string, []string) {
 			tag := raw[start:j]
 			if tag != "" && !slices.Contains(tags, tag) {
 				tags = append(tags, tag)
+				builder.WriteString(tio.Bold)
 				builder.WriteString(tag)
+				builder.WriteString(tio.NoBold)
 			}
 			i = j
 			// Skip trailing colon

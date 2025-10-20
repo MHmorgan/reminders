@@ -1,4 +1,4 @@
-package main
+package tio
 
 const (
 	Bel           = "\a"

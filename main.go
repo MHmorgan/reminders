@@ -8,7 +8,12 @@ import (
 	"strings"
 
 	"github.com/MHmorgan/reminders/reminder"
+	"github.com/MHmorgan/reminders/tio"
 )
+
+// @Todo Only search text files
+// @Todo Don't search files with known non-code file extensions
+// @Todo Handle formatting only when printing
 
 func main() {
 	flag.Parse()
@@ -37,10 +42,10 @@ func main() {
 				continue
 			}
 			if printPath {
-				fmt.Printf("%s%s%s%s/%s%s%s\n", Bold, Dim, dir, Reset, Bold, base, Reset)
+				fmt.Printf("\n%s%s%s%s/%s%s%s\n", tio.Bold, tio.Dim, dir, tio.Reset, tio.Bold, base, tio.Reset)
 				printPath = false
 			}
-			fmt.Printf("%4d %s\n", r.Line(), r.Text())
+			fmt.Printf("%4d: %s\n", r.Line(), r.Text())
 		}
 		select {
 		case err := <-errors:
