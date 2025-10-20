@@ -27,6 +27,7 @@ func fileScanning(
 
 	for res := range in {
 		src, err := io.ReadAll(res.file)
+		res.file.Close()
 		if err != nil {
 			errors <- fmt.Errorf("Failed to read %q: %w", res.path, err)
 			continue

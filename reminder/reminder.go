@@ -12,7 +12,7 @@ func New(file string, line int, text string, tags []string) Reminder {
 		file: file,
 		line: line,
 		text: text,
-		tags: cloneStrings(tags),
+		tags: tags,
 	}
 }
 
@@ -29,18 +29,9 @@ func (r Reminder) Text() string {
 }
 
 func (r Reminder) Tags() []string {
-	return cloneStrings(r.tags)
+	return r.tags
 }
 
 func (r *Reminder) SetTags(tags []string) {
-	r.tags = cloneStrings(tags)
-}
-
-func cloneStrings(in []string) []string {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]string, len(in))
-	copy(out, in)
-	return out
+	r.tags = tags
 }

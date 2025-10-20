@@ -246,7 +246,10 @@ func parseComment(raw string) (string, []string) {
 			}
 			tag := raw[start:j]
 			if tag != "" && !slices.Contains(tags, tag) {
-				tags = append(tags, tag)
+				// Normalize tags to lowercase
+				lower := strings.ToLower(tag)
+				tags = append(tags, lower)
+				// Include the tag the text
 				builder.WriteString(tio.Bold)
 				builder.WriteString(tag)
 				builder.WriteString(tio.NoBold)
