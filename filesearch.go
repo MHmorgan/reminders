@@ -1,31 +1,37 @@
 package main
 
 import (
-	"context"
+	"fmt"
 	"io/fs"
-	"path/filepath"
 	"strings"
 )
 
-func findFiles(ctx context.Context, root string, out chan<- string) error {
-	return filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
+type searchResult struct {
+	path string
+	file fs.File
+}
 
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
+// Search for files in `fsys`.
+//
+// Any encountered files are opened and passed to `files`.
+//
+// If opening a file fails or walking the filesystem fails,
+// the error is passed to `errors`.
+func fileSearch(fsys fs.FS, files chan<- searchResult, errors chan<- error) {
+	defer close(files)
+
+	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
 
 		if d.IsDir() {
-			if path == root {
+			if path == "." {
 				return nil
 			}
-
+			// Skip hidden directories
 			if strings.HasPrefix(d.Name(), ".") {
-				return filepath.SkipDir
+				return fs.SkipDir
 			}
 			return nil
 		}
@@ -34,11 +40,15 @@ func findFiles(ctx context.Context, root string, out chan<- string) error {
 			return nil
 		}
 
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case out <- filepath.Clean(path):
-			return nil
+		if f, err := fsys.Open(path); err != nil {
+			errors <- fmt.Errorf("Failed to open %q: %w", path, err)
+		} else {
+			files <- searchResult{path, f}
 		}
+		return nil
 	})
+
+	if err != nil {
+		errors <- err
+	}
 }

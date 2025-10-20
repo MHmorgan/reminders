@@ -13,18 +13,13 @@ var (
 	blockClose = []byte("*/")
 )
 
-func NewScanner(
-	file string,
-	src []byte,
-	out chan<- reminder.Reminder,
-) (*Scanner, error) {
-	s := &Scanner{
+func NewScanner(file string, src []byte, out chan<- reminder.Reminder) *Scanner {
+	return &Scanner{
 		src:       src,
 		file:      file,
-		line:      1,
+		lineNum:   1,
 		reminders: out,
 	}
-	return s, nil
 }
 
 // A Scanner holds the scanner's internal state while scanning
@@ -32,10 +27,10 @@ func NewScanner(
 type Scanner struct {
 	src []byte
 
-	ch   byte
-	pos  int
-	line int
-	file string
+	ch      byte
+	pos     int
+	lineNum int
+	file    string
 
 	reminders chan<- reminder.Reminder
 }
@@ -71,7 +66,7 @@ func (s *Scanner) next() {
 	s.pos++
 
 	if s.ch == '\n' {
-		s.line++
+		s.lineNum++
 	}
 }
 
@@ -111,29 +106,38 @@ func (s *Scanner) eof() bool {
 	return s.pos >= len(s.src)
 }
 
+// Scan a single-line comment starting with `//`
 func (s *Scanner) scanCppComment() {
-	line := s.line
+	line := s.lineNum
 	s.next()
 	raw := s.collectUntil(func() bool { return s.ch == '\n' })
 	s.emitReminder(line, raw)
 }
 
+// Scan a multi-line comment like `/* ... */`
 func (s *Scanner) scanCComment() {
-	line := s.line
+	lineNum := s.lineNum
 	s.next()
 	raw := s.collectUntilPattern(blockClose)
-	s.emitReminder(line, raw)
+
+	for i, line := range strings.Split(raw, "\n") {
+		line = strings.Trim(line, " \t*")
+		s.emitReminder(lineNum+i, line)
+	}
+
 }
 
+// Scan a single-line comment starting with `#`
 func (s *Scanner) scanHashComment() {
-	line := s.line
+	line := s.lineNum
 	s.next()
 	raw := s.collectUntil(func() bool { return s.ch == '\n' })
 	s.emitReminder(line, raw)
 }
 
+// Scan a single-line comment starting with `--`
 func (s *Scanner) scanDashComment() {
-	line := s.line
+	line := s.lineNum
 	s.next()
 	if s.ch == '-' {
 		s.next()
@@ -142,11 +146,15 @@ func (s *Scanner) scanDashComment() {
 	s.emitReminder(line, raw)
 }
 
+// Scan a multi-line comment like `<!-- ... -->`
 func (s *Scanner) scanHtmlComment() {
-	line := s.line
+	lineNum := s.lineNum
 	s.skip(3)
 	raw := s.collectUntilPattern(htmlClose)
-	s.emitReminder(line, raw)
+
+	for i, line := range strings.Split(raw, "\n") {
+		s.emitReminder(lineNum+i, line)
+	}
 }
 
 func (s *Scanner) collectUntil(stop func() bool) string {
@@ -192,7 +200,7 @@ func (s *Scanner) collectUntilPattern(pattern []byte) string {
 }
 
 func (s *Scanner) emitReminder(line int, raw string) {
-	text, tags := parseComment(raw)
+	text, tags := parseComment(strings.TrimSpace(raw))
 	if len(tags) == 0 {
 		return
 	}
@@ -227,6 +235,9 @@ func parseComment(raw string) (string, []string) {
 			i++
 		// Consume tags
 		case c == '@' && isTagBoundary(prev) && i+1 < len(raw) && isTagChar(raw[i+1]):
+			if !lastSpace && builder.Len() > 0 {
+				builder.WriteByte(' ')
+			}
 			start := i + 1
 			j := start
 			for j < len(raw) && isTagChar(raw[j]) {
@@ -235,15 +246,14 @@ func parseComment(raw string) (string, []string) {
 			tag := raw[start:j]
 			if tag != "" && !slices.Contains(tags, tag) {
 				tags = append(tags, tag)
+				builder.WriteString(tag)
 			}
 			i = j
 			// Skip trailing colon
 			if i < len(raw) && raw[i] == ':' {
 				i++
 			}
-			if !lastSpace && builder.Len() > 0 {
-				builder.WriteByte(' ')
-			}
+			builder.WriteByte(' ')
 			lastSpace = true
 			prev = ' '
 		// Collapse consecutive spaces

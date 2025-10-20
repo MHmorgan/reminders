@@ -1,106 +1,71 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
+	"path"
 	"strings"
-	"syscall"
 
 	"github.com/MHmorgan/reminders/reminder"
 )
 
 func main() {
 	flag.Parse()
-	filters := normalizeArgs(flag.Args())
+	filters := normalizeTags(flag.Args())
 
-	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	searchRes := make(chan searchResult)
+	scanRes := make(chan scanResult)
+	errors := make(chan error, 1)
 
-	ctx, cancel := context.WithCancel(rootCtx)
-	defer cancel()
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	fsys := os.DirFS(cwd)
 
-	fileCh := make(chan string)
-	reminderCh := make(chan reminder.Reminder)
-	errCh := make(chan error, 2)
+	go fileSearch(fsys, searchRes, errors)
+	go fileScanning(searchRes, scanRes, errors)
 
-	go func() {
-		err := findFiles(ctx, ".", fileCh)
-		close(fileCh)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			select {
-			case errCh <- err:
-			default:
-			}
-			cancel()
-		}
-	}()
-
-	go func() {
-		err := scanFiles(ctx, cancel, fileCh, reminderCh)
-		close(reminderCh)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			select {
-			case errCh <- err:
-			default:
-			}
-			cancel()
-		}
-	}()
-
-	var runErr error
-	var ctxErr error
-
-	for {
-		select {
-		case r, ok := <-reminderCh:
-			if !ok {
-				goto drainErrors
-			}
+	// Consume and print results
+	for res := range scanRes {
+		base := path.Base(res.path)
+		dir := path.Dir(res.path)
+		printPath := true
+		for r := range res.reminders {
 			if !shouldEmit(r, filters) {
 				continue
 			}
-			fmt.Printf("%s:%d [%s] %s\n", r.File(), r.Line(), strings.Join(r.Tags(), ", "), r.Text())
-		case err := <-errCh:
-			if err != nil && runErr == nil {
-				runErr = err
+			if printPath {
+				fmt.Printf("%s%s%s%s/%s%s%s\n", Bold, Dim, dir, Reset, Bold, base, Reset)
+				printPath = false
 			}
-		case <-ctx.Done():
-			if ctxErr == nil {
-				ctxErr = ctx.Err()
-			}
+			fmt.Printf("%4d %s\n", r.Line(), r.Text())
 		}
-	}
-
-drainErrors:
-	for {
 		select {
-		case err := <-errCh:
-			if err != nil && runErr == nil {
-				runErr = err
-			}
+		case err := <-errors:
+			fmt.Fprintf(os.Stderr, "walk error: %v\n", err)
 		default:
-			goto finalize
 		}
 	}
 
-finalize:
-	if runErr != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", runErr)
-		os.Exit(1)
-	}
-	if ctxErr != nil && !errors.Is(ctxErr, context.Canceled) {
-		fmt.Fprintf(os.Stderr, "%v\n", ctxErr)
-		os.Exit(1)
+	select {
+	case err := <-errors:
+		fmt.Fprintf(os.Stderr, "walk error: %v\n", err)
+	default:
 	}
 }
 
-func normalizeArgs(args []string) map[string]struct{} {
+func normalizeTags(args []string) map[string]struct{} {
 	if len(args) == 0 {
-		return nil
+		return map[string]struct{}{
+			"bug":      {},
+			"consider": {},
+			"fix":      {},
+			"later":    {},
+			"next":     {},
+			"todo":     {},
+		}
 	}
 
 	filters := make(map[string]struct{}, len(args))

@@ -11,8 +11,8 @@ const fTest = "langly-falls.go"
 
 func testScanner(source string, sz int) (*Scanner, <-chan reminder.Reminder, error) {
 	out := make(chan reminder.Reminder, sz)
-	scn, err := NewScanner(fTest, []byte(source), out)
-	return scn, out, err
+	scn := NewScanner(fTest, []byte(source), out)
+	return scn, out, nil
 }
 
 func drain(out <-chan reminder.Reminder) []reminder.Reminder {
@@ -35,9 +35,9 @@ func TestBasics(t *testing.T) {
 
 	var (
 		fLine = 1
-		fText = "TEST TEXT"
+		fText = "TODO TEST TEXT"
 		fTag  = "TODO"
-		fTmpl = "@" + fTag + " " + fText
+		fTmpl = "@" + fText
 	)
 
 	var tests = []struct {
@@ -105,10 +105,10 @@ var expect = []struct {
 	tags []string
 	text string
 }{
-	{line: 2, tags: []string{"Todo"}, text: "Clean this up"},
-	{line: 4, tags: []string{"Todo", "Later"}, text: "Do more?"},
-	{line: 5, tags: []string{"Bug", "Fix"}, text: "Wrong text!"},
-	{line: 8, tags: []string{"Next"}, text: "Remove this"},
+	{line: 2, tags: []string{"Todo"}, text: "Todo Clean this up"},
+	{line: 4, tags: []string{"Todo", "Later"}, text: "Todo Later Do more?"},
+	{line: 5, tags: []string{"Bug", "Fix"}, text: "Bug Fix Wrong text!"},
+	{line: 8, tags: []string{"Next"}, text: "Next Remove this"},
 }
 
 func TestComposite(t *testing.T) {
