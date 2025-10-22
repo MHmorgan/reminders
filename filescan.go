@@ -1,9 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"io"
-
 	"github.com/MHmorgan/reminders/reminder"
 	"github.com/MHmorgan/reminders/scanner"
 )
@@ -28,18 +25,12 @@ func fileScanning(
 	var scn scanner.Scanner
 
 	for res := range in {
-		src, err := io.ReadAll(res.file)
-		res.file.Close()
-		if err != nil {
-			errors <- fmt.Errorf("Failed to read %q: %w", res.path, err)
-			continue
-		}
-
 		reminders := make(chan reminder.Reminder, 1)
 		out <- scanResult{res.path, reminders}
 
-		scn.Init(res.path, src, reminders)
+		scn.Init(res.path, res.file, reminders)
 		scn.Scan()
+		_ = res.file.Close()
 		close(reminders)
 	}
 }

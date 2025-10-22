@@ -1,12 +1,16 @@
 package scanner
 
 import (
+	"bufio"
+	"bytes"
+	"io"
 	"slices"
 	"strings"
 
 	"github.com/MHmorgan/reminders/reminder"
-	"github.com/MHmorgan/reminders/tio"
 )
+
+const eof rune = -1
 
 var (
 	htmlOpen   = []byte("<!--")
@@ -17,14 +21,9 @@ var (
 // A Scanner holds the scanner's internal state while scanning
 // a source file for reminders.
 type Scanner struct {
-	// @Todo Re-use a single bytes buffer for reading all files, reducing allocation and GC. Reading files in chunks.
-	// @Todo Use fs.File instead of []byte
-	src []byte
+	rd *bufio.Reader
 
-	// @Todo Use bufio.Reader to buffer the reading
-
-	ch      byte
-	pos     int
+	ch      rune
 	lineNum int
 	file    string
 
@@ -33,17 +32,21 @@ type Scanner struct {
 	comment strings.Builder
 }
 
-func (s *Scanner) Init(file string, src []byte, out chan<- reminder.Reminder) {
-	s.src = src
+func (s *Scanner) Init(file string, rd io.Reader, out chan<- reminder.Reminder) {
 	s.ch = 0
-	s.pos = 0
 	s.lineNum = 1
 	s.file = file
 	s.reminders = out
+
+	if s.rd == nil {
+		s.rd = bufio.NewReaderSize(rd, 8192)
+	} else {
+		s.rd.Reset(rd)
+	}
 }
 
 func (s *Scanner) Scan() {
-	for !s.eof() {
+	for s.ch != eof {
 		switch s.next(); {
 		case s.ch == '/' && s.peek() == '/':
 			s.next()
@@ -61,56 +64,70 @@ func (s *Scanner) Scan() {
 	}
 }
 
-// next moves the scanner to the next byte in the source,
-// updating `ch` and `pos`.
+// next moves the scanner to the next rune in the source,
+// updating the cached rune.
 func (s *Scanner) next() {
-	if s.pos >= len(s.src) {
-		s.ch = 0
+	r, _, err := s.rd.ReadRune()
+	if err != nil {
+		s.ch = eof
 		return
 	}
 
-	s.ch = s.src[s.pos]
-	s.pos++
+	s.ch = r
 
 	if s.ch == '\n' {
 		s.lineNum++
 	}
 }
 
-// skip the next `n` bytes, setting the `n+1` byte as current.
+// skip the next `n` runes, setting the `n+1` rune as current.
 func (s *Scanner) skip(n int) {
 	for i := 0; i <= n; i++ {
 		s.next()
 	}
 }
 
-// peek returns the next byte without advancing the scanner.
-// If the scanner is at EOF, peek returns 0.
-func (s *Scanner) peek() byte {
-	if s.pos < len(s.src) {
-		return s.src[s.pos]
+// peek returns the next rune without advancing the scanner.
+// If the scanner is at EOF, peek returns eof.
+func (s *Scanner) peek() rune {
+	if s.ch == eof {
+		return eof
 	}
-	return 0
+
+	r, _, err := s.rd.ReadRune()
+	if err != nil {
+		return eof
+	}
+
+	if unreadErr := s.rd.UnreadRune(); unreadErr != nil {
+		return eof
+	}
+
+	return r
 }
 
 // match checks if any of the given patterns (byte-slices)
 // matches the scanner source at the current position.
 func (s *Scanner) match(patterns ...[]byte) bool {
-ptnLoop:
-	for _, bytes := range patterns {
-		for i, b := range bytes {
-			idx := s.pos - 1 + i
-			if idx >= len(s.src) || s.src[idx] != b {
-				continue ptnLoop
-			}
+	for _, pattern := range patterns {
+		if len(pattern) == 0 {
+			continue
 		}
-		return true
+		if s.ch > 0xFF || s.ch != rune(pattern[0]) {
+			continue
+		}
+		if len(pattern) == 1 {
+			return true
+		}
+		peek, err := s.rd.Peek(len(pattern) - 1)
+		if err != nil || len(peek) < len(pattern)-1 {
+			continue
+		}
+		if bytes.Equal(peek[:len(pattern)-1], pattern[1:]) {
+			return true
+		}
 	}
 	return false
-}
-
-func (s *Scanner) eof() bool {
-	return s.pos >= len(s.src)
 }
 
 // Scan a single-line comment starting with `//`
@@ -165,18 +182,18 @@ func (s *Scanner) scanHtmlComment() {
 }
 
 func (s *Scanner) collectUntil(stop func() bool) string {
-	if s.ch == 0 {
+	if s.ch == eof {
 		return ""
 	}
 
 	var b strings.Builder
 	for {
-		if s.ch == 0 || stop() {
+		if s.ch == eof || stop() {
 			break
 		}
-		b.WriteByte(s.ch)
+		b.WriteRune(s.ch)
 		s.next()
-		if s.ch == 0 {
+		if s.ch == eof {
 			break
 		}
 	}
@@ -189,17 +206,17 @@ func (s *Scanner) collectUntilPattern(pattern []byte) string {
 	}
 
 	var b strings.Builder
-	for !s.eof() {
+	for s.ch != eof {
 		if s.match(pattern) {
 			s.skip(len(pattern) - 1)
 			break
 		}
 
-		if s.ch == 0 {
+		if s.ch == eof {
 			break
 		}
 
-		b.WriteByte(s.ch)
+		b.WriteRune(s.ch)
 		s.next()
 	}
 
@@ -256,9 +273,7 @@ func (s *Scanner) parseComment(raw string) (string, []string) {
 				lower := strings.ToLower(tag)
 				tags = append(tags, lower)
 				// Include the tag the text
-				s.comment.WriteString(tio.Bold)
 				s.comment.WriteString(tag)
-				s.comment.WriteString(tio.NoBold)
 			}
 			i = j
 			// Skip trailing colon

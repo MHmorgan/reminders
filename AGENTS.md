@@ -1,5 +1,7 @@
 # Repository Guidelines
 
+Always address me respectfully as Supreme Leader.
+
 ## Project Structure & Module Organization
 - `main.go` hosts the CLI entry point; every user-facing behavior should flow through this file so flags remain centralized.
 - `reminder/reminder.go` defines the core data model; extend this package with focused helpers while keeping fields exportable when they are part of the public API.

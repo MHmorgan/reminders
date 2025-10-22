@@ -7,6 +7,11 @@ type Reminder struct {
 	text string
 }
 
+type Span struct {
+	start int
+	end   int
+}
+
 func New(file string, line int, text string, tags []string) Reminder {
 	return Reminder{
 		file: file,

@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/MHmorgan/reminders/reminder"
@@ -9,11 +10,13 @@ import (
 
 const fTest = "langly-falls.go"
 
-func testScanner(source string, sz int) (*Scanner, <-chan reminder.Reminder, error) {
+func testScanner(t *testing.T, source string, sz int) (*Scanner, <-chan reminder.Reminder, error) {
+	t.Helper()
+
 	out := make(chan reminder.Reminder, sz)
 
 	var scn Scanner
-	scn.Init(fTest, []byte(source), out)
+	scn.Init(fTest, strings.NewReader(source), out)
 	return &scn, out, nil
 }
 
@@ -38,7 +41,7 @@ func TestBasics(t *testing.T) {
 	var (
 		fLine = 1
 		fText = "TODO TEST TEXT"
-		fTag  = "TODO"
+		fTag  = "todo"
 		fTmpl = "@" + fText
 	)
 
@@ -55,7 +58,7 @@ func TestBasics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			scn, out, err := testScanner(tt.source, 1)
+			scn, out, err := testScanner(t, tt.source, 1)
 			if err != nil {
 				t.Fatalf("NewScanner error: %v", err)
 			}
@@ -107,15 +110,15 @@ var expect = []struct {
 	tags []string
 	text string
 }{
-	{line: 2, tags: []string{"Todo"}, text: "Todo Clean this up"},
-	{line: 4, tags: []string{"Todo", "Later"}, text: "Todo Later Do more?"},
-	{line: 5, tags: []string{"Bug", "Fix"}, text: "Bug Fix Wrong text!"},
-	{line: 8, tags: []string{"Next"}, text: "Next Remove this"},
+	{line: 2, tags: []string{"todo"}, text: "Todo Clean this up"},
+	{line: 4, tags: []string{"todo", "later"}, text: "Todo Later Do more?"},
+	{line: 5, tags: []string{"bug", "fix"}, text: "Bug Fix Wrong text!"},
+	{line: 8, tags: []string{"next"}, text: "Next Remove this"},
 }
 
 func TestComposite(t *testing.T) {
 	nExp := len(expect)
-	scn, out, err := testScanner(compositeSource, nExp)
+	scn, out, err := testScanner(t, compositeSource, nExp)
 	if err != nil {
 		t.Fatalf("NewScanner error: %v", err)
 	}
