@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/MHmorgan/reminders/reminder"
 	"github.com/MHmorgan/reminders/scanner"
 )
@@ -30,6 +32,9 @@ func fileScanning(
 
 		scn.Init(res.path, res.file, reminders)
 		scn.Scan()
+		if err := scn.Err(); err != nil {
+			errors <- fmt.Errorf("scan %s: %w", res.path, err)
+		}
 		_ = res.file.Close()
 		close(reminders)
 	}

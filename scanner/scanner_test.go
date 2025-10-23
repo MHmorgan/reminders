@@ -43,6 +43,7 @@ func TestBasics(t *testing.T) {
 		fText = "TODO TEST TEXT"
 		fTag  = "todo"
 		fTmpl = "@" + fText
+		fSpan = []reminder.Span{{Start: 0, End: 4}}
 	)
 
 	var tests = []struct {
@@ -84,6 +85,9 @@ func TestBasics(t *testing.T) {
 			if !slices.Equal(r.Tags(), fTags) {
 				t.Fatalf("expected tags %v, got %v", fTags, r.Tags())
 			}
+			if !slices.Equal(r.Spans(), fSpan) {
+				t.Fatalf("expected spans %v, got %v", fSpan, r.Spans())
+			}
 		})
 	}
 }
@@ -106,14 +110,15 @@ foo()
 `
 
 var expect = []struct {
-	line int
-	tags []string
-	text string
+	line  int
+	tags  []string
+	text  string
+	spans []reminder.Span
 }{
-	{line: 2, tags: []string{"todo"}, text: "Todo Clean this up"},
-	{line: 4, tags: []string{"todo", "later"}, text: "Todo Later Do more?"},
-	{line: 5, tags: []string{"bug", "fix"}, text: "Bug Fix Wrong text!"},
-	{line: 8, tags: []string{"next"}, text: "Next Remove this"},
+	{line: 2, tags: []string{"todo"}, text: "Todo Clean this up", spans: []reminder.Span{{Start: 0, End: 4}}},
+	{line: 4, tags: []string{"todo", "later"}, text: "Todo Later Do more?", spans: []reminder.Span{{Start: 0, End: 4}, {Start: 5, End: 10}}},
+	{line: 5, tags: []string{"bug", "fix"}, text: "Bug Fix Wrong text!", spans: []reminder.Span{{Start: 0, End: 3}, {Start: 4, End: 7}}},
+	{line: 8, tags: []string{"next"}, text: "Next Remove this", spans: []reminder.Span{{Start: 0, End: 4}}},
 }
 
 func TestComposite(t *testing.T) {
@@ -144,6 +149,9 @@ func TestComposite(t *testing.T) {
 		}
 		if !slices.Equal(r.Tags(), e.tags) {
 			t.Fatalf("expected tags %v, got %v", e.tags, r.Tags())
+		}
+		if !slices.Equal(r.Spans(), e.spans) {
+			t.Fatalf("expected spans %v, got %v", e.spans, r.Spans())
 		}
 	}
 }

@@ -3,9 +3,11 @@ package scanner
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/MHmorgan/reminders/reminder"
 )
@@ -21,7 +23,8 @@ var (
 // A Scanner holds the scanner's internal state while scanning
 // a source file for reminders.
 type Scanner struct {
-	rd *bufio.Reader
+	rd  *bufio.Reader
+	buf []rune
 
 	ch      rune
 	lineNum int
@@ -29,14 +32,15 @@ type Scanner struct {
 
 	reminders chan<- reminder.Reminder
 
-	comment strings.Builder
+	err error
 }
 
 func (s *Scanner) Init(file string, rd io.Reader, out chan<- reminder.Reminder) {
-	s.ch = 0
+	s.ch = eof
 	s.lineNum = 1
 	s.file = file
 	s.reminders = out
+	s.err = nil
 
 	if s.rd == nil {
 		s.rd = bufio.NewReaderSize(rd, 8192)
@@ -46,8 +50,13 @@ func (s *Scanner) Init(file string, rd io.Reader, out chan<- reminder.Reminder) 
 }
 
 func (s *Scanner) Scan() {
-	for s.ch != eof {
-		switch s.next(); {
+	for {
+		s.next()
+		if s.ch == eof {
+			return
+		}
+
+		switch {
 		case s.ch == '/' && s.peek() == '/':
 			s.next()
 			s.scanCppComment()
@@ -67,8 +76,18 @@ func (s *Scanner) Scan() {
 // next moves the scanner to the next rune in the source,
 // updating the cached rune.
 func (s *Scanner) next() {
+	if s.err != nil {
+		s.ch = eof
+		return
+	}
+
 	r, _, err := s.rd.ReadRune()
 	if err != nil {
+		if errors.Is(err, io.EOF) {
+			s.ch = eof
+			return
+		}
+		s.err = err
 		s.ch = eof
 		return
 	}
@@ -96,10 +115,15 @@ func (s *Scanner) peek() rune {
 
 	r, _, err := s.rd.ReadRune()
 	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return eof
+		}
+		s.err = err
 		return eof
 	}
 
-	if unreadErr := s.rd.UnreadRune(); unreadErr != nil {
+	if err := s.rd.UnreadRune(); err != nil {
+		s.err = err
 		return eof
 	}
 
@@ -223,45 +247,52 @@ func (s *Scanner) collectUntilPattern(pattern []byte) string {
 	return b.String()
 }
 
+// Err reports the first non-EOF error encountered while scanning.
+func (s *Scanner) Err() error {
+	return s.err
+}
+
 func (s *Scanner) emitReminder(line int, raw string) {
-	text, tags := s.parseComment(strings.TrimSpace(raw))
+	text, tags, spans := s.parseComment(strings.TrimSpace(raw))
 	if len(tags) == 0 {
 		return
 	}
 
-	rem := reminder.New(s.file, line, text, tags)
+	rem := reminder.New(s.file, line, text, tags, spans)
 	s.reminders <- rem
 }
 
-func (s *Scanner) parseComment(raw string) (string, []string) {
+func (s *Scanner) parseComment(raw string) (string, []string, []reminder.Span) {
 	if raw == "" {
-		return "", nil
+		return "", nil, nil
 	}
 
 	var (
 		tags      []string
 		lastSpace = true
 		prev      byte
+		buf       = s.buf[:0]
+		spans     []reminder.Span
 	)
 
-	s.comment.Reset()
 	for i := 0; i < len(raw); {
 		c := raw[i]
 
 		switch {
 		// Normalize whitespaces into space
 		case c == '\r' || c == '\n' || c == '\t':
-			if !lastSpace && s.comment.Len() > 0 {
-				s.comment.WriteByte(' ')
+			if !lastSpace && len(buf) > 0 {
+				buf = append(buf, ' ')
 				lastSpace = true
 			}
 			prev = ' '
 			i++
 		// Consume tags
 		case c == '@' && isTagBoundary(prev) && i+1 < len(raw) && isTagChar(raw[i+1]):
-			if !lastSpace && s.comment.Len() > 0 {
-				s.comment.WriteByte(' ')
+			if !lastSpace && len(buf) > 0 {
+				buf = append(buf, ' ')
 			}
+
 			start := i + 1
 			j := start
 			for j < len(raw) && isTagChar(raw[j]) {
@@ -272,35 +303,44 @@ func (s *Scanner) parseComment(raw string) (string, []string) {
 				// Normalize tags to lowercase
 				lower := strings.ToLower(tag)
 				tags = append(tags, lower)
-				// Include the tag the text
-				s.comment.WriteString(tag)
+				tagStart := len(buf)
+				for _, r := range tag {
+					buf = append(buf, r)
+				}
+				spans = append(spans, reminder.Span{
+					Start: tagStart,
+					End:   len(buf),
+				})
 			}
 			i = j
 			// Skip trailing colon
 			if i < len(raw) && raw[i] == ':' {
 				i++
 			}
-			s.comment.WriteByte(' ')
+			if len(buf) > 0 {
+				buf = append(buf, ' ')
+			}
 			lastSpace = true
 			prev = ' '
 		// Collapse consecutive spaces
 		case c == ' ':
-			if !lastSpace && s.comment.Len() > 0 {
-				s.comment.WriteByte(' ')
+			if !lastSpace && len(buf) > 0 {
+				buf = append(buf, ' ')
 			}
 			lastSpace = true
 			prev = ' '
 			i++
 		default:
-			s.comment.WriteByte(c)
+			r, size := utf8.DecodeRuneInString(raw[i:])
+			buf = append(buf, r)
 			lastSpace = false
 			prev = c
-			i++
+			i += size
 		}
 	}
 
-	text := strings.TrimSpace(s.comment.String())
-	return text, tags
+	text := strings.TrimSpace(string(buf))
+	return text, tags, spans
 }
 
 func isTagBoundary(prev byte) bool {

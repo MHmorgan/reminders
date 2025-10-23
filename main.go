@@ -113,7 +113,7 @@ func main() {
 				fmt.Printf("\n%s%s%s%s/%s%s%s\n", tio.Bold, tio.Dim, dir, tio.Reset, tio.Bold, base, tio.Reset)
 				printPath = false
 			}
-			fmt.Printf("%4d: %s\n", r.Line(), r.Text())
+			fmt.Printf("%4d: %s\n", r.Line(), r.Format())
 		}
 
 		printErr(errors, "walk error")
