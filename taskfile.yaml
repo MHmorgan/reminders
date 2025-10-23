@@ -3,11 +3,16 @@ version: '3'
 interval: 1000ms
 
 tasks:
+  default:
+    deps:
+      - test
+      - run
   test:
-    desc: Run tests
-    watch: true
-    sources:
-      - '**/*.go'
+    desc: Run all tests
     cmds:
-      - clear
-      - go test -v ./...
+      - go test ./...
+  run:
+    desc: Run the application in the current directory
+    cmds:
+      - go run ./...
+    

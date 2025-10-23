@@ -7,16 +7,21 @@ import (
 	"github.com/MHmorgan/reminders/scanner"
 )
 
+// The results of scanning a single file for reminders.
+//
+// Includes the path of the scanned file and a channel
+// of reminders which is closed when scanning of the file
+// is completed.
 type scanResult struct {
 	path      string
 	reminders <-chan reminder.Reminder
 }
 
-// Scan for reminders in all the files received from the `files` channel.
+// Scan for reminders in all the search results received from the
+// input channel.
 //
-// Each file is scanned in a separate goroutine, using a separate channel
-// (passed to `reminders`) which is clased when the scanning of the file is
-// completed.
+// For each scanned file, a single [scanResult] is passed
+// to the output channel.
 func fileScanning(
 	in <-chan searchResult,
 	out chan<- scanResult,
