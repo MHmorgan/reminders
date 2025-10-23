@@ -271,26 +271,26 @@ func (s *Scanner) parseComment(raw string) (string, []string, []reminder.Span) {
 		tags      []string
 		lastSpace = true
 		prev      byte
-		buf       = s.buf[:0]
 		spans     []reminder.Span
 	)
 
+	s.buf = s.buf[:0]
 	for i := 0; i < len(raw); {
 		c := raw[i]
 
 		switch {
 		// Normalize whitespaces into space
 		case c == '\r' || c == '\n' || c == '\t':
-			if !lastSpace && len(buf) > 0 {
-				buf = append(buf, ' ')
+			if !lastSpace && len(s.buf) > 0 {
+				s.buf = append(s.buf, ' ')
 				lastSpace = true
 			}
 			prev = ' '
 			i++
 		// Consume tags
 		case c == '@' && isTagBoundary(prev) && i+1 < len(raw) && isTagChar(raw[i+1]):
-			if !lastSpace && len(buf) > 0 {
-				buf = append(buf, ' ')
+			if !lastSpace && len(s.buf) > 0 {
+				s.buf = append(s.buf, ' ')
 			}
 
 			start := i + 1
@@ -303,13 +303,13 @@ func (s *Scanner) parseComment(raw string) (string, []string, []reminder.Span) {
 				// Normalize tags to lowercase
 				lower := strings.ToLower(tag)
 				tags = append(tags, lower)
-				tagStart := len(buf)
+				tagStart := len(s.buf)
 				for _, r := range tag {
-					buf = append(buf, r)
+					s.buf = append(s.buf, r)
 				}
 				spans = append(spans, reminder.Span{
 					Start: tagStart,
-					End:   len(buf),
+					End:   len(s.buf),
 				})
 			}
 			i = j
@@ -317,29 +317,29 @@ func (s *Scanner) parseComment(raw string) (string, []string, []reminder.Span) {
 			if i < len(raw) && raw[i] == ':' {
 				i++
 			}
-			if len(buf) > 0 {
-				buf = append(buf, ' ')
+			if len(s.buf) > 0 {
+				s.buf = append(s.buf, ' ')
 			}
 			lastSpace = true
 			prev = ' '
 		// Collapse consecutive spaces
 		case c == ' ':
-			if !lastSpace && len(buf) > 0 {
-				buf = append(buf, ' ')
+			if !lastSpace && len(s.buf) > 0 {
+				s.buf = append(s.buf, ' ')
 			}
 			lastSpace = true
 			prev = ' '
 			i++
 		default:
 			r, size := utf8.DecodeRuneInString(raw[i:])
-			buf = append(buf, r)
+			s.buf = append(s.buf, r)
 			lastSpace = false
 			prev = c
 			i += size
 		}
 	}
 
-	text := strings.TrimSpace(string(buf))
+	text := strings.TrimSpace(string(s.buf))
 	return text, tags, spans
 }
 
