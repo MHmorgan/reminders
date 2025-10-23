@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/MHmorgan/reminders/reminder"
 	"github.com/MHmorgan/reminders/scanner"
 )
@@ -17,15 +15,48 @@ type scanResult struct {
 	reminders <-chan reminder.Reminder
 }
 
+func fileScanning(
+	workers int,
+	in <-chan searchResult,
+	out chan<- scanResult,
+) {
+	defer close(out)
+
+	cs := make([]chan scanResult, workers)
+	for i := range workers {
+		c := make(chan scanResult, 1)
+		cs[i] = c
+		go fileScanningWorker(in, c)
+	}
+
+	done := 0
+	for done < workers {
+		for i, c := range cs {
+			if c == nil {
+				continue
+			}
+			select {
+			case res, ok := <-c:
+				if ok {
+					out <- res
+				} else {
+					cs[i] = nil
+					done++
+				}
+			default:
+			}
+		}
+	}
+}
+
 // Scan for reminders in all the search results received from the
 // input channel.
 //
 // For each scanned file, a single [scanResult] is passed
 // to the output channel.
-func fileScanning(
+func fileScanningWorker(
 	in <-chan searchResult,
 	out chan<- scanResult,
-	errors chan<- error,
 ) {
 	defer close(out)
 
@@ -37,9 +68,6 @@ func fileScanning(
 
 		scn.Init(res.path, res.file, reminders)
 		scn.Scan()
-		if err := scn.Err(); err != nil {
-			errors <- fmt.Errorf("scan %s: %w", res.path, err)
-		}
 		_ = res.file.Close()
 		close(reminders)
 	}

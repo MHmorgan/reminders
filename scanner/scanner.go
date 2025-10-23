@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
+	"os"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -31,8 +33,6 @@ type Scanner struct {
 	file    string
 
 	reminders chan<- reminder.Reminder
-
-	err error
 }
 
 func (s *Scanner) Init(file string, rd io.Reader, out chan<- reminder.Reminder) {
@@ -40,7 +40,6 @@ func (s *Scanner) Init(file string, rd io.Reader, out chan<- reminder.Reminder) 
 	s.lineNum = 1
 	s.file = file
 	s.reminders = out
-	s.err = nil
 
 	if s.rd == nil {
 		s.rd = bufio.NewReaderSize(rd, 8192)
@@ -76,18 +75,11 @@ func (s *Scanner) Scan() {
 // next moves the scanner to the next rune in the source,
 // updating the cached rune.
 func (s *Scanner) next() {
-	if s.err != nil {
-		s.ch = eof
-		return
-	}
-
 	r, _, err := s.rd.ReadRune()
 	if err != nil {
-		if errors.Is(err, io.EOF) {
-			s.ch = eof
-			return
+		if !errors.Is(err, io.EOF) {
+			fmt.Fprintf(os.Stderr, "Scanner error: %v", err)
 		}
-		s.err = err
 		s.ch = eof
 		return
 	}
@@ -115,15 +107,10 @@ func (s *Scanner) peek() rune {
 
 	r, _, err := s.rd.ReadRune()
 	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return eof
-		}
-		s.err = err
 		return eof
 	}
 
 	if err := s.rd.UnreadRune(); err != nil {
-		s.err = err
 		return eof
 	}
 
@@ -245,11 +232,6 @@ func (s *Scanner) collectUntilPattern(pattern []byte) string {
 	}
 
 	return b.String()
-}
-
-// Err reports the first non-EOF error encountered while scanning.
-func (s *Scanner) Err() error {
-	return s.err
 }
 
 func (s *Scanner) emitReminder(line int, raw string) {

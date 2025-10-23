@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -52,7 +53,7 @@ type searchResult struct {
 //
 // If opening a file fails or walking the filesystem fails,
 // the error is passed to `errors`.
-func fileSearch(fsys fs.FS, files chan<- searchResult, errors chan<- error) {
+func fileSearch(fsys fs.FS, files chan<- searchResult) {
 	defer close(files)
 
 	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
@@ -85,7 +86,7 @@ func fileSearch(fsys fs.FS, files chan<- searchResult, errors chan<- error) {
 		}
 
 		if f, err := fsys.Open(path); err != nil {
-			errors <- fmt.Errorf("Failed to open %q: %w", path, err)
+			fmt.Fprintf(os.Stderr, "Failed to open %q: %v", path, err)
 		} else {
 			files <- searchResult{path, f}
 		}
@@ -93,6 +94,6 @@ func fileSearch(fsys fs.FS, files chan<- searchResult, errors chan<- error) {
 	})
 
 	if err != nil {
-		errors <- err
+		fmt.Fprintf(os.Stderr, "Search error: %v", err)
 	}
 }

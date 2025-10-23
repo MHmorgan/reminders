@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"runtime"
 )
 
 var (
@@ -24,7 +25,7 @@ func main() {
 
 	searchRes := make(chan searchResult, 1)
 	scanRes := make(chan scanResult, 1)
-	errors := make(chan error, 1)
+	workers := runtime.NumCPU() - 2
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -32,8 +33,8 @@ func main() {
 	}
 	fsys := os.DirFS(cwd)
 
-	go fileSearch(fsys, searchRes, errors)
-	go fileScanning(searchRes, scanRes, errors)
+	go fileSearch(fsys, searchRes)
+	go fileScanning(workers, searchRes, scanRes)
 
 	printResults(flag.Args(), scanRes)
 
