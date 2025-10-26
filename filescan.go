@@ -15,6 +15,11 @@ type scanResult struct {
 	reminders <-chan reminder.Reminder
 }
 
+// Scan for reminders in all the search results received from the
+// input channel.
+//
+// For each scanned file, a single [scanResult] is passed
+// to the output channel.
 func fileScanning(
 	workers int,
 	in <-chan searchResult,
@@ -49,11 +54,6 @@ func fileScanning(
 	}
 }
 
-// Scan for reminders in all the search results received from the
-// input channel.
-//
-// For each scanned file, a single [scanResult] is passed
-// to the output channel.
 func fileScanningWorker(
 	in <-chan searchResult,
 	out chan<- scanResult,
