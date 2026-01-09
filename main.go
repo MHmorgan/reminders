@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"runtime"
@@ -13,8 +14,9 @@ import (
 const version = "1.0.1"
 
 var (
-	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
-	memprofile = flag.String("memprofile", "", "write memory profile to `file`")
+	printVersion = flag.Bool("version", false, "print app version")
+	cpuprofile   = flag.String("cpuprofile", "", "write cpu profile to `file`")
+	memprofile   = flag.String("memprofile", "", "write memory profile to `file`")
 )
 
 // @Next Use viper for config
@@ -60,6 +62,11 @@ var exclude = map[string]bool{
 
 func main() {
 	flag.Parse()
+
+	if *printVersion {
+		fmt.Println(version)
+		return
+	}
 
 	if *cpuprofile != "" {
 		startCpuProfiling(*cpuprofile)
