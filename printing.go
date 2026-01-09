@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/MHmorgan/reminders/reminder"
+	"github.com/MHmorgan/reminders/scanner"
 	"github.com/MHmorgan/reminders/tio"
 )
 
@@ -13,16 +14,16 @@ import (
 // tags slice as a filter.
 func printResults(
 	tags []string,
-	scanRes <-chan scanResult,
+	scanRes <-chan scanner.Result,
 ) {
 	filters := normalizeTags(tags)
 	nFiles := 0
 	for res := range scanRes {
-		base := path.Base(res.path)
-		dir := path.Dir(res.path)
+		base := path.Base(res.Path)
+		dir := path.Dir(res.Path)
 		printPath := true
 
-		for r := range res.reminders {
+		for r := range res.Reminders {
 			if !shouldPrint(r, filters) {
 				continue
 			}
