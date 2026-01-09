@@ -10,7 +10,7 @@ import (
 	"github.com/MHmorgan/reminders/searcher"
 )
 
-const version = "1.0.0"
+const version = "1.0.1"
 
 var (
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")

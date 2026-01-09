@@ -1,6 +1,8 @@
 package scanner
 
 import (
+	"sync"
+
 	"github.com/MHmorgan/reminders/reminder"
 	"github.com/MHmorgan/reminders/searcher"
 )
@@ -8,48 +10,31 @@ import (
 // Scan for reminders in all the search results received from the
 // input channel.
 //
-// For each scanned file, a single [scanResult] is passed
+// For each scanned file, a single [Result] is passed
 // to the output channel.
 func Scan(nWorkers int, in <-chan searcher.Result) <-chan Result {
-	out := make(chan Result, 1)
+	out := make(chan Result, nWorkers)
 
 	go func() {
 		defer close(out)
 
-		// Start all worker goroutines
-		cs := make([]chan Result, nWorkers)
-		for i := range nWorkers {
-			c := make(chan Result, 1)
-			cs[i] = c
-			go work(in, c)
+		var wg sync.WaitGroup
+		wg.Add(nWorkers)
+
+		for range nWorkers {
+			go func() {
+				defer wg.Done()
+				work(in, out)
+			}()
 		}
 
-		done := 0
-		for done < nWorkers {
-			for i, c := range cs {
-				if c == nil {
-					continue
-				}
-				select {
-				case res, ok := <-c:
-					if ok {
-						out <- res
-					} else {
-						cs[i] = nil
-						done++
-					}
-				default:
-				}
-			}
-		}
+		wg.Wait()
 	}()
 
 	return out
 }
 
 func work(in <-chan searcher.Result, out chan<- Result) {
-	defer close(out)
-
 	var scn Scanner
 
 	for res := range in {
