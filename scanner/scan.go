@@ -2,10 +2,13 @@ package scanner
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/MHmorgan/reminders/reminder"
 	"github.com/MHmorgan/reminders/searcher"
 )
+
+var ScannedLines atomic.Uint64
 
 // Scan for reminders in all the search results received from the
 // input channel.
@@ -45,5 +48,7 @@ func work(in <-chan searcher.Result, out chan<- Result) {
 		scn.Scan()
 		res.File.Close()
 		close(reminders)
+
+		ScannedLines.Add(uint64(scn.lineNum))
 	}
 }

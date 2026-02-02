@@ -11,7 +11,7 @@ import (
 	"github.com/MHmorgan/reminders/searcher"
 )
 
-const version = "1.0.1"
+const version = "1.0.2"
 
 var (
 	printVersion = flag.Bool("version", false, "print app version")

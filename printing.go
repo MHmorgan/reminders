@@ -37,7 +37,8 @@ func printResults(
 		nFiles++
 	}
 
-	fmt.Printf("\nScanned %d files.\n", nFiles)
+	nLines := scanner.ScannedLines.Load()
+	fmt.Printf("\nScanned %d lines in %d files.\n", nLines, nFiles)
 }
 
 // Normalize the given tags input to a map of tags which should
