@@ -19,10 +19,8 @@ var (
 	memprofile   = flag.String("memprofile", "", "write memory profile to `file`")
 )
 
-// @Next @Use viper for config?
-// @Next @Use log (charmbracelet) for application logging
-// @Next @Use lipgloss/bubbletea for application output
-// @Todo @Handle formatting only when printing
+// @Todo @Support specifying a different root directory for the search than CWD
+// @Todo @Use libraries from minimal viable software
 
 var include = map[string]bool{
 	".bash": true,
