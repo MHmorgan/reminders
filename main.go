@@ -20,7 +20,10 @@ var (
 )
 
 // @Todo @Support specifying a different root directory for the search than CWD
+
 // @Todo @Use libraries from minimal viable software
+
+// @Todo @Support including/excluding files/paths matching a regex pattern when searching
 
 var include = map[string]bool{
 	".bash": true,
